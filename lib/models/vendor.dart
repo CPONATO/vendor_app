@@ -2,6 +2,7 @@
 import 'dart:convert';
 
 class Vendor {
+  //Defined the Fields that we need
   final String id;
   final String fullName;
   final String email;
@@ -22,6 +23,7 @@ class Vendor {
     required this.password,
   });
 
+  ///coverting too map so that we can easily covert to json , and this is because the data will be sent to mongodb in json
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'id': id,
@@ -35,9 +37,13 @@ class Vendor {
     };
   }
 
+  //Coverting to Json because the data will be sent with json
+  String toJson() => json.encode(toMap());
+
+  ///coverting back to the Vendor user Object so that we can make use of it within our application
   factory Vendor.fromMap(Map<String, dynamic> map) {
     return Vendor(
-      id: map['id'] as String? ?? "",
+      id: map['_id'] as String? ?? "",
       fullName: map['fullName'] as String? ?? "",
       email: map['email'] as String? ?? "",
       state: map['state'] as String? ?? "",
@@ -47,8 +53,6 @@ class Vendor {
       password: map['password'] as String? ?? "",
     );
   }
-
-  String toJson() => json.encode(toMap());
 
   factory Vendor.fromJson(String source) =>
       Vendor.fromMap(json.decode(source) as Map<String, dynamic>);

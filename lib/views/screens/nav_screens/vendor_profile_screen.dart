@@ -15,6 +15,5 @@ class VendorProfileScreen extends StatelessWidget {
         child: Text('Sign Out'),
       ),
     );
-    ;
   }
 }

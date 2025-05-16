@@ -41,7 +41,7 @@ class VendorAuthController {
         response: response,
         context: context,
         onSuccess: () {
-          showSnackBar(context, 'Vendor account created');
+          showSnackBar(context, 'Tài khoản người bán đã được tạo');
         },
       );
     } catch (e) {
@@ -63,39 +63,59 @@ class VendorAuthController {
         },
       );
 
-      manageHttpResponse(
-        response: response,
-        context: context,
-        onSuccess: () async {
-          SharedPreferences preferences = await SharedPreferences.getInstance();
-          String token = jsonDecode(response.body)['token'];
-          await preferences.setString('auth_token', token);
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
-          // Sử dụng 'user' thay vì 'vendor'
-          final vendorData = jsonDecode(response.body)['user'];
-          if (vendorData == null) {
-            showSnackBar(context, 'Error: Vendor data not found in response');
-            return;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        try {
+          SharedPreferences preferences = await SharedPreferences.getInstance();
+          final responseData = jsonDecode(response.body);
+
+          // Lưu token vào SharedPreferences
+          if (responseData['token'] != null) {
+            String token = responseData['token'];
+            await preferences.setString('auth_token', token);
           }
 
-          final vendorJson = jsonEncode(vendorData);
-          providerContainer.read(vendorProvider.notifier).setVendor(vendorJson);
+          // Kiểm tra và xử lý dữ liệu người dùng
+          if (responseData['user'] != null) {
+            final userData = responseData['user'];
 
-          await preferences.setString('vendor', vendorJson);
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(
-              builder: (context) {
-                return MainVendorScreen();
-              },
-            ),
-            (route) => false,
-          );
-          showSnackBar(context, 'Login successfully');
-        },
-      );
+            // In ra thông tin người dùng để debug
+            print('User data: $userData');
+
+            // Lưu trữ dữ liệu người dùng gốc vào SharedPreferences
+            await preferences.setString('vendor', jsonEncode(userData));
+
+            // Cập nhật nhà cung cấp bằng cách sử dụng dữ liệu người dùng
+            providerContainer
+                .read(vendorProvider.notifier)
+                .setVendor(jsonEncode(userData));
+
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => MainVendorScreen()),
+              (route) => false,
+            );
+
+            showSnackBar(context, 'Đăng nhập thành công');
+          } else {
+            print('Lỗi: Không tìm thấy dữ liệu người dùng trong phản hồi');
+            showSnackBar(context, 'Lỗi: Không tìm thấy dữ liệu người dùng');
+          }
+        } catch (e) {
+          print('Lỗi xử lý phản hồi: $e');
+          showSnackBar(context, 'Lỗi xử lý phản hồi: $e');
+        }
+      } else {
+        showSnackBar(
+          context,
+          'Đăng nhập thất bại. Mã lỗi: ${response.statusCode}',
+        );
+      }
     } catch (e) {
-      showSnackBar(context, '$e');
+      print('Lỗi kết nối: $e');
+      showSnackBar(context, 'Lỗi kết nối: $e');
     }
   }
 
@@ -120,9 +140,9 @@ class VendorAuthController {
         (route) => false,
       );
 
-      showSnackBar(context, 'signout successfully');
+      showSnackBar(context, 'Đăng xuất thành công');
     } catch (e) {
-      showSnackBar(context, "error signing out");
+      showSnackBar(context, "Lỗi khi đăng xuất");
     }
   }
 }
