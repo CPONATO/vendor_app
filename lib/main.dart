@@ -15,12 +15,14 @@ class MyApp extends ConsumerWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    Future<void> checktokenAndSetUser(WidgetRef ref) async {
+    // Make sure to use the ref from the widget
+    Future<void> checkTokenAndSetUser() async {
       SharedPreferences preferences = await SharedPreferences.getInstance();
       String? token = preferences.getString('auth_token');
       String? vendorJson = preferences.getString('vendor');
 
       if (token != null && vendorJson != null) {
+        // Use the ref from the widget to update the provider
         ref.read(vendorProvider.notifier).setVendor(vendorJson);
       } else {
         ref.read(vendorProvider.notifier).signOut();
@@ -30,25 +32,10 @@ class MyApp extends ConsumerWidget {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
       home: FutureBuilder(
-        future: checktokenAndSetUser(ref),
+        future: checkTokenAndSetUser(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());

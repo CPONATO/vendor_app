@@ -11,6 +11,8 @@ class Vendor {
   final String locality;
   final String role;
   final String password;
+  final String? storeImage;
+  final String? storeDescription;
 
   Vendor({
     required this.id,
@@ -21,6 +23,8 @@ class Vendor {
     required this.locality,
     required this.role,
     required this.password,
+    this.storeImage,
+    this.storeDescription,
   });
 
   ///coverting too map so that we can easily covert to json , and this is because the data will be sent to mongodb in json
@@ -34,6 +38,8 @@ class Vendor {
       'locality': locality,
       'role': role,
       'password': password,
+      'storeImage': storeImage,
+      'storeDescription': storeDescription,
     };
   }
 
@@ -51,6 +57,8 @@ class Vendor {
       locality: map['locality'] as String? ?? "",
       role: map['role'] as String? ?? "",
       password: map['password'] as String? ?? "",
+      storeImage: map['storeImage'] as String? ?? "",
+      storeDescription: map['storeDescription'] as String? ?? "",
     );
   }
 

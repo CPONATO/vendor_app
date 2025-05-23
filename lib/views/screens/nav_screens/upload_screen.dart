@@ -284,30 +284,33 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
                     );
                     return;
                   }
+
+                  // Log thông tin vendor để debug
+                  print('Current vendor ID: ${vendor.id}');
+                  print('Current vendor name: ${vendor.fullName}');
+
                   final fullName = vendor.fullName;
                   final vendorId = vendor.id;
 
                   // Kiểm tra tất cả các trường
                   if (_formkey.currentState!.validate()) {
                     if (images.isEmpty) {
-                      showSnackBar(
-                        context,
-                        'Vui lòng chọn ít nhất một hình ảnh',
-                      );
+                      showSnackBar(context, 'Please select at least one image');
                       return;
                     }
                     if (selectedCategory == null) {
-                      showSnackBar(context, 'Vui lòng chọn danh mục');
+                      showSnackBar(context, 'Please select a category');
                       return;
                     }
                     if (selectedSubcategory == null) {
-                      showSnackBar(context, 'Vui lòng chọn danh mục con');
+                      showSnackBar(context, 'Please select a subcategory');
                       return;
                     }
 
                     setState(() {
                       isLoading = true;
                     });
+
                     await _productController
                         .uploadProduct(
                           productName: productName,
@@ -325,26 +328,17 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
                           setState(() {
                             isLoading = false;
                           });
-                          print('Data to upload:');
-                          print('Product Name: $productName');
-                          print('Product Price: $productPrice');
-                          print('Quantity: $quantity');
-                          print('Description: $description');
-                          print('Category: ${selectedCategory?.name}');
-                          print(
-                            'Subcategory: ${selectedSubcategory?.subCategoryName}',
-                          );
-                          print('Images: $images');
-                          print('Vendor ID: $vendorId');
-                          print('Full Name: $fullName');
+                          // Reset form
                           selectedCategory = null;
                           selectedSubcategory = null;
                           images.clear();
-                          _formkey.currentState!
-                              .reset(); // Reset form sau khi upload
+                          _formkey.currentState!.reset();
                         });
                   } else {
-                    showSnackBar(context, 'Vui lòng điền đầy đủ thông tin');
+                    showSnackBar(
+                      context,
+                      'Please fill in all required information',
+                    );
                   }
                 },
                 child: Container(

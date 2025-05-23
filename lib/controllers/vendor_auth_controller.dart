@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:cloudinary_public/cloudinary_public.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as providerContainer;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vendor_store_ap/global_variables.dart';
 import 'package:vendor_store_ap/models/vendor.dart';
@@ -10,7 +13,8 @@ import 'package:vendor_store_ap/services/manage_http_response.dart';
 import 'package:vendor_store_ap/views/screens/auth/login_screen.dart';
 import 'package:vendor_store_ap/views/screens/main_vendor_screen.dart';
 
-final providerContainer = ProviderContainer();
+// Remove the global providerContainer
+// final providerContainer = ProviderContainer();
 
 class VendorAuthController {
   Future<void> signupVendor({
@@ -31,7 +35,7 @@ class VendorAuthController {
         password: password,
       );
       http.Response response = await http.post(
-        Uri.parse("$uri/api/vendor/signup"),
+        Uri.parse("$uri/api/v2/vendor/signup"),
         body: vendor.toJson(),
         headers: <String, String>{
           "Content-Type": 'application/json; charset=UTF-8',
@@ -41,7 +45,7 @@ class VendorAuthController {
         response: response,
         context: context,
         onSuccess: () {
-          showSnackBar(context, 'Tài khoản người bán đã được tạo');
+          showSnackBar(context, 'Vendor account created successfully');
         },
       );
     } catch (e) {
@@ -56,7 +60,7 @@ class VendorAuthController {
   }) async {
     try {
       http.Response response = await http.post(
-        Uri.parse('$uri/api/vendor/signin'),
+        Uri.parse('$uri/api/v2/vendor/signin'),
         body: jsonEncode({"email": email, "password": password}),
         headers: <String, String>{
           "Content-Type": 'application/json; charset=UTF-8',
@@ -71,24 +75,25 @@ class VendorAuthController {
           SharedPreferences preferences = await SharedPreferences.getInstance();
           final responseData = jsonDecode(response.body);
 
-          // Lưu token vào SharedPreferences
+          // Save token to SharedPreferences
           if (responseData['token'] != null) {
             String token = responseData['token'];
             await preferences.setString('auth_token', token);
           }
 
-          // Kiểm tra và xử lý dữ liệu người dùng
+          // Check and process user data
           if (responseData['user'] != null) {
             final userData = responseData['user'];
 
-            // In ra thông tin người dùng để debug
+            // Debug user info
             print('User data: $userData');
 
-            // Lưu trữ dữ liệu người dùng gốc vào SharedPreferences
+            // Store original user data in SharedPreferences
             await preferences.setString('vendor', jsonEncode(userData));
 
-            // Cập nhật nhà cung cấp bằng cách sử dụng dữ liệu người dùng
-            providerContainer
+            // Update provider using the ProviderContainer from the widget tree
+            final container = ProviderScope.containerOf(context);
+            container
                 .read(vendorProvider.notifier)
                 .setVendor(jsonEncode(userData));
 
@@ -98,38 +103,39 @@ class VendorAuthController {
               (route) => false,
             );
 
-            showSnackBar(context, 'Đăng nhập thành công');
+            showSnackBar(context, 'Sign in successful');
           } else {
-            print('Lỗi: Không tìm thấy dữ liệu người dùng trong phản hồi');
-            showSnackBar(context, 'Lỗi: Không tìm thấy dữ liệu người dùng');
+            print('Error: User data not found in response');
+            showSnackBar(context, 'Error: User data not found');
           }
         } catch (e) {
-          print('Lỗi xử lý phản hồi: $e');
-          showSnackBar(context, 'Lỗi xử lý phản hồi: $e');
+          print('Error processing response: $e');
+          showSnackBar(context, 'Error processing response: $e');
         }
       } else {
         showSnackBar(
           context,
-          'Đăng nhập thất bại. Mã lỗi: ${response.statusCode}',
+          'Sign in failed. Error code: ${response.statusCode}',
         );
       }
     } catch (e) {
-      print('Lỗi kết nối: $e');
-      showSnackBar(context, 'Lỗi kết nối: $e');
+      print('Connection error: $e');
+      showSnackBar(context, 'Connection error: $e');
     }
   }
 
   Future<void> signOutUSer({required BuildContext context}) async {
     try {
       SharedPreferences preferences = await SharedPreferences.getInstance();
-      //clear the token and user from SharedPreferenace
+      // Clear the token and user from SharedPreferences
       await preferences.remove('auth_token');
       await preferences.remove('vendor');
-      //clear the user state
-      providerContainer.read(vendorProvider.notifier).signOut();
 
-      //navigate the user back to the login screen
+      // Clear the user state using the container from the widget tree
+      final container = ProviderScope.containerOf(context);
+      container.read(vendorProvider.notifier).signOut();
 
+      // Navigate the user back to the login screen
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
@@ -140,9 +146,100 @@ class VendorAuthController {
         (route) => false,
       );
 
-      showSnackBar(context, 'Đăng xuất thành công');
+      showSnackBar(context, 'Signed out successfully');
     } catch (e) {
-      showSnackBar(context, "Lỗi khi đăng xuất");
+      showSnackBar(context, "Error signing out");
+    }
+  }
+
+  Future<void> updateVendorData({
+    required BuildContext context,
+    required String id,
+    required File? storeImage,
+    required String storeDescription,
+    required WidgetRef ref,
+  }) async {
+    try {
+      final cloudinary = CloudinaryPublic("dlfpyd3ro", 'back_api');
+      CloudinaryResponse imageResponse = await cloudinary.uploadFile(
+        CloudinaryFile.fromFile(
+          storeImage!.path,
+          identifier: 'pickedImage',
+          folder: 'storeImage',
+        ),
+      );
+      String image = imageResponse.secureUrl;
+      print("Đang cập nhật data cho ID: $id");
+
+      final http.Response response = await http.put(
+        Uri.parse('$uri/api/vendor/$id'),
+        headers: <String, String>{
+          "Content-Type": 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode({
+          'storeImage': image,
+          'storeDescription': storeDescription,
+        }),
+      );
+
+      manageHttpResponse(
+        response: response,
+        context: context,
+        onSuccess: () async {
+          final updatedUser = jsonDecode(response.body);
+          final userJson = jsonEncode(updatedUser);
+          ref.read(vendorProvider.notifier).setVendor(userJson);
+
+          showSnackBar(context, 'Data updated');
+        },
+      );
+    } catch (e) {
+      print("Lỗi cập nhật địa chỉ: $e");
+      showSnackBar(context, 'Failed updarting data');
+    }
+  }
+
+  //delete   account
+  Future<void> deleteAccoumt({
+    required BuildContext context,
+    required String id,
+    required WidgetRef ref,
+  }) async {
+    try {
+      SharedPreferences preferences = await SharedPreferences.getInstance();
+      String? token = preferences.getString('auth_token');
+      if (token == null) {
+        showSnackBar(context, "You need to login to perform this action");
+        return;
+      }
+
+      http.Response response = await http.delete(
+        Uri.parse('$uri/api/user/delete-account/$id'),
+        headers: <String, String>{
+          "Content-Type": 'application/json; charset=UTF-8',
+          'x-auth-token': token,
+        },
+      );
+      manageHttpResponse(
+        response: response,
+        context: context,
+        onSuccess: () async {
+          await preferences.remove(('auth_token'));
+
+          await preferences.remove('user');
+
+          ref.read(vendorProvider.notifier).signOut();
+
+          showSnackBar(context, 'Account deleted');
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (route) => false,
+          );
+        },
+      );
+    } catch (e) {
+      showSnackBar(context, 'Error deleting account: $e');
     }
   }
 }

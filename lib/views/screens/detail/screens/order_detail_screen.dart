@@ -1,11 +1,127 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vendor_store_ap/controllers/order_controller.dart';
 import 'package:vendor_store_ap/models/order.dart';
+import 'package:vendor_store_ap/provider/order_provider.dart';
+import 'package:vendor_store_ap/services/manage_http_response.dart';
+import 'package:vendor_store_ap/views/screens/nav_screens/order_screen.dart';
 
-class OrderDetailScreen extends StatelessWidget {
+class OrderDetailScreen extends ConsumerStatefulWidget {
   final Order order;
 
   const OrderDetailScreen({super.key, required this.order});
+
+  @override
+  _OrderDetailScreenState createState() => _OrderDetailScreenState();
+}
+
+class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
+  final OrderController _orderController = OrderController();
+  bool isUpdating = false;
+
+  // Tạo biến order trong state để có thể cập nhật
+  late Order _order;
+
+  @override
+  void initState() {
+    super.initState();
+    // Khởi tạo _order từ widget.order
+    _order = widget.order;
+  }
+
+  // Phương thức cập nhật UI sau khi order được cập nhật
+  void _refreshOrderStatus(bool delivered, bool processing) {
+    setState(() {
+      // Tạo một Order mới với trạng thái đã cập nhật
+      _order = Order(
+        id: _order.id,
+        fullName: _order.fullName,
+        email: _order.email,
+        state: _order.state,
+        city: _order.city,
+        locality: _order.locality,
+        productName: _order.productName,
+        productPrice: _order.productPrice,
+        quantity: _order.quantity,
+        category: _order.category,
+        image: _order.image,
+        buyerId: _order.buyerId,
+        vendorId: _order.vendorId,
+        processing: processing,
+        delivered: delivered,
+      );
+
+      isUpdating = false;
+    });
+  }
+
+  Future<void> _updateDeliveryStatus() async {
+    setState(() {
+      isUpdating = true;
+    });
+
+    try {
+      await _orderController.UpdateDeliveryStatus(
+        id: _order.id,
+        context: context,
+      );
+
+      // Cập nhật UI sau khi API thành công
+      _refreshOrderStatus(true, false);
+
+      // Cập nhật trạng thái trong provider
+      ref.read(orderProvider.notifier).markOrderAsDelivered(_order.id);
+
+      // Trả về kết quả true để thông báo OrderScreen rằng đã có cập nhật
+      Navigator.pop(context, true);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) {
+            return OrderScreen();
+          },
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        isUpdating = false;
+      });
+      showSnackBar(context, 'Failed to update order: $e');
+    }
+  }
+
+  Future<void> _cancelOrder() async {
+    setState(() {
+      isUpdating = true;
+    });
+
+    try {
+      await _orderController.cancelOrder(id: _order.id, context: context);
+
+      // Cập nhật UI sau khi API thành công
+      _refreshOrderStatus(false, false);
+
+      // Cập nhật trạng thái trong provider
+      ref.read(orderProvider.notifier).cancelOrder(_order.id);
+
+      // Trả về kết quả true để thông báo OrderScreen rằng đã có cập nhật
+      Navigator.pop(context, true);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) {
+            return OrderScreen();
+          },
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        isUpdating = false;
+      });
+      showSnackBar(context, 'Failed to cancel order: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,10 +132,14 @@ class OrderDetailScreen extends StatelessWidget {
         backgroundColor: Colors.blue[800],
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed:
+              () => Navigator.pop(
+                context,
+                false,
+              ), // Trả về false nếu không có thay đổi
         ),
         title: const Text(
-          'Order Details',
+          'Order Management',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -28,9 +148,10 @@ class OrderDetailScreen extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.share_outlined, color: Colors.white),
+            icon: const Icon(Icons.print_outlined, color: Colors.white),
             onPressed: () {
-              // Share functionality
+              // Print invoice functionality
+              showSnackBar(context, 'Printing invoice...');
             },
           ),
         ],
@@ -52,29 +173,29 @@ class OrderDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildOrderStatusBar(order),
-            _buildOrderInfo(order),
-            _buildProductDetails(order),
-            _buildShippingDetails(order),
-            _buildPaymentDetails(order),
+            _buildOrderStatusBar(),
+            _buildOrderInfo(),
+            _buildProductDetails(),
+            _buildShippingDetails(),
+            _buildPaymentDetails(),
             const SizedBox(height: 24),
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomBar(context, order),
+      bottomNavigationBar: _buildBottomBar(),
     );
   }
 
-  Widget _buildOrderStatusBar(Order order) {
+  Widget _buildOrderStatusBar() {
     Color statusColor;
     String statusText;
     IconData statusIcon;
 
-    if (order.delivered) {
+    if (_order.delivered) {
       statusColor = Colors.green[600]!;
       statusText = 'Delivered';
       statusIcon = CupertinoIcons.checkmark_circle_fill;
-    } else if (order.processing) {
+    } else if (_order.processing) {
       statusColor = Colors.blue[600]!;
       statusText = 'Processing';
       statusIcon = CupertinoIcons.time_solid;
@@ -91,43 +212,46 @@ class OrderDetailScreen extends StatelessWidget {
         border: Border(bottom: BorderSide(color: Colors.grey[200]!, width: 1)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(statusIcon, color: statusColor, size: 24),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                statusText,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: statusColor,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  statusText,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: statusColor,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _getStatusDescription(order),
-                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  _getStatusDescription(),
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  String _getStatusDescription(Order order) {
-    if (order.delivered) {
-      return 'Your order has been delivered successfully';
-    } else if (order.processing) {
-      return 'Your order is being processed';
+  String _getStatusDescription() {
+    if (_order.delivered) {
+      return 'This order has been delivered to the customer';
+    } else if (_order.processing) {
+      return 'This order is currently being processed';
     } else {
-      return 'Your order has been cancelled';
+      return 'This order has been cancelled';
     }
   }
 
-  Widget _buildOrderInfo(Order order) {
+  Widget _buildOrderInfo() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -144,25 +268,45 @@ class OrderDetailScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Order Information',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue[800],
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Order Information',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue[800],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'ID: ${_order.id.substring(0, 8)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[800],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
-          _buildInfoRow('Order ID', '# ${order.id.substring(0, 8)}'),
+          _buildInfoRow('Order Date', _formatDate(DateTime.now())),
           const SizedBox(height: 8),
-          _buildInfoRow(
-            'Date',
-            _formatDate(DateTime.now()),
-          ), // Replace with actual order date when available
+          _buildInfoRow('Customer', _order.fullName),
           const SizedBox(height: 8),
-          _buildInfoRow('Buyer Name', order.fullName),
+          _buildInfoRow('Email', _order.email),
           const SizedBox(height: 8),
-          _buildInfoRow('Email', order.email),
+          _buildInfoRow('Phone', '+84 *** *** ***'), // Placeholder for phone
         ],
       ),
     );
@@ -173,7 +317,7 @@ class OrderDetailScreen extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: 120,
+          width: 100,
           child: Text(
             label,
             style: TextStyle(fontSize: 14, color: Colors.grey[700]),
@@ -189,7 +333,12 @@ class OrderDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProductDetails(Order order) {
+  Widget _buildProductDetails() {
+    // Calculate commission and vendor earnings
+    final subtotal = _order.productPrice * _order.quantity;
+    final platformFee = subtotal * 0.05; // Example: 5% platform fee
+    final vendorEarnings = subtotal - platformFee;
+
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
@@ -208,7 +357,7 @@ class OrderDetailScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Product',
+            'Product Details',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -227,7 +376,7 @@ class OrderDetailScreen extends StatelessWidget {
                   height: 100,
                   color: Colors.grey[200],
                   child: Image.network(
-                    order.image,
+                    _order.image,
                     fit: BoxFit.cover,
                     errorBuilder:
                         (ctx, error, _) => Center(
@@ -247,7 +396,7 @@ class OrderDetailScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      order.productName,
+                      _order.productName,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -257,7 +406,7 @@ class OrderDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Category: ${order.category}',
+                      'Category: ${_order.category}',
                       style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                     ),
                     const SizedBox(height: 8),
@@ -265,14 +414,14 @@ class OrderDetailScreen extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Quantity: ${order.quantity}',
+                          'Quantity: ${_order.quantity}',
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         Text(
-                          '\$${order.productPrice.toStringAsFixed(2)} / item',
+                          '\$${_order.productPrice.toStringAsFixed(2)} / item',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
@@ -293,9 +442,9 @@ class OrderDetailScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Subtotal', style: TextStyle(fontSize: 14)),
+              const Text('Customer Paid', style: TextStyle(fontSize: 14)),
               Text(
-                '\$${(order.productPrice * order.quantity).toStringAsFixed(2)}',
+                '\$${subtotal.toStringAsFixed(2)}',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -307,26 +456,16 @@ class OrderDetailScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Shipping', style: TextStyle(fontSize: 14)),
-              Text(
-                '\$5.00',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+              const Text(
+                'Platform Fee (5%)',
+                style: TextStyle(fontSize: 14, color: Colors.red),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Tax', style: TextStyle(fontSize: 14)),
               Text(
-                '\$${(order.productPrice * order.quantity * 0.05).toStringAsFixed(2)}',
-                style: const TextStyle(
+                '-\$${platformFee.toStringAsFixed(2)}',
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
+                  color: Colors.red,
                 ),
               ),
             ],
@@ -338,15 +477,15 @@ class OrderDetailScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Total',
+                'Your Earnings',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               Text(
-                '\$${(order.productPrice * order.quantity + 5.0 + (order.productPrice * order.quantity * 0.05)).toStringAsFixed(2)}',
+                '\$${vendorEarnings.toStringAsFixed(2)}',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.blue[800],
+                  color: Colors.green[700],
                 ),
               ),
             ],
@@ -356,7 +495,7 @@ class OrderDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildShippingDetails(Order order) {
+  Widget _buildShippingDetails() {
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
@@ -375,7 +514,7 @@ class OrderDetailScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Shipping Address',
+            'Delivery Information',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -405,7 +544,16 @@ class OrderDetailScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      order.fullName,
+                      'Delivery Address:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _order.fullName,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -413,7 +561,7 @@ class OrderDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '${order.locality}, ${order.city}, ${order.state}',
+                      '${_order.locality}, ${_order.city}, ${_order.state}',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[700],
@@ -425,12 +573,49 @@ class OrderDetailScreen extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          _order.delivered ? _buildDeliveryConfirmation() : Container(),
         ],
       ),
     );
   }
 
-  Widget _buildPaymentDetails(Order order) {
+  Widget _buildDeliveryConfirmation() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.check_circle, color: Colors.green[700], size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Delivery Confirmed',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green[700],
+                  ),
+                ),
+                Text(
+                  'This order was delivered on ${_formatDate(DateTime.now())}',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentDetails() {
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
@@ -449,7 +634,7 @@ class OrderDetailScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Payment Method',
+            'Payment Information',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -482,19 +667,152 @@ class OrderDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Payment to be made when order is delivered',
+                    _order.delivered
+                        ? 'Payment has been collected from the customer'
+                        : 'Payment will be collected upon delivery',
                     style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                   ),
                 ],
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          _order.delivered
+              ? Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.account_balance_wallet,
+                      color: Colors.green[700],
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Your earnings have been added to your balance',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+              : Container(),
         ],
       ),
     );
   }
 
-  Widget _buildBottomBar(BuildContext context, Order order) {
+  Widget _buildBottomBar() {
+    if (isUpdating) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 1,
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_order.delivered) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 1,
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    // Contact buyer functionality
+                    showSnackBar(context, 'Contacting buyer...');
+                  },
+                  icon: const Icon(CupertinoIcons.chat_bubble_text),
+                  label: const Text('Contact Buyer'),
+                  style: ElevatedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.blue[700],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (!_order.processing && !_order.delivered) {
+      // Đơn hàng đã bị hủy
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 1,
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    // Contact buyer functionality
+                    showSnackBar(context, 'Contacting buyer...');
+                  },
+                  icon: const Icon(CupertinoIcons.chat_bubble_text),
+                  label: const Text('Contact Buyer'),
+                  style: ElevatedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: Colors.blue[700],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -511,42 +829,68 @@ class OrderDetailScreen extends StatelessWidget {
       child: SafeArea(
         child: Row(
           children: [
+            // Nút Mark as Delivered
             Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  // Implement contact seller
-                },
-                icon: const Icon(CupertinoIcons.chat_bubble_text),
-                label: const Text('Contact Seller'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.blue[700],
-                  side: BorderSide(color: Colors.blue[700]!),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+              child: ElevatedButton.icon(
+                onPressed: _updateDeliveryStatus,
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Mark as Delivered'),
+                style: ElevatedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor: Colors.green[600],
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
             ),
             const SizedBox(width: 12),
+            // Nút Cancel Order
             Expanded(
-              child: ElevatedButton.icon(
-                onPressed:
-                    order.delivered
-                        ? null
-                        : () {
-                          // Implement track order
-                        },
-                icon: const Icon(CupertinoIcons.location),
-                label: Text(order.delivered ? 'Delivered' : 'Track Order'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[700],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  // Hiển thị dialog xác nhận trước khi hủy
+                  showDialog(
+                    context: context,
+                    builder:
+                        (ctx) => AlertDialog(
+                          title: const Text('Cancel Order'),
+                          content: const Text(
+                            'Are you sure you want to cancel this order? This action cannot be undone.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: Text(
+                                'No, Keep It',
+                                style: TextStyle(color: Colors.grey[700]),
+                              ),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.of(ctx).pop();
+                                _cancelOrder();
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red[600],
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('Yes, Cancel Order'),
+                            ),
+                          ],
+                        ),
+                  );
+                },
+                icon: const Icon(CupertinoIcons.trash),
+                label: const Text('Cancel Order'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red[700],
+                  side: BorderSide(color: Colors.red[700]!),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  disabledBackgroundColor: Colors.grey[400],
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
             ),

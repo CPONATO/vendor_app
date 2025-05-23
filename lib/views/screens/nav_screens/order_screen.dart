@@ -5,6 +5,7 @@ import 'package:vendor_store_ap/controllers/order_controller.dart';
 import 'package:vendor_store_ap/models/order.dart';
 import 'package:vendor_store_ap/provider/order_provider.dart';
 import 'package:vendor_store_ap/provider/vendor_provider.dart';
+import 'package:vendor_store_ap/services/manage_http_response.dart';
 import 'package:vendor_store_ap/views/screens/detail/screens/order_detail_screen.dart';
 
 class OrderScreen extends ConsumerStatefulWidget {
@@ -18,6 +19,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   bool _isLoading = true;
   bool _isCriticalError = false; // Only for critical errors, not empty orders
   String? _errorMessage;
+  final OrderController _orderController = OrderController();
 
   @override
   void initState() {
@@ -34,9 +36,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
     final user = ref.read(vendorProvider);
     if (user != null) {
-      final OrderController orderController = OrderController();
       try {
-        final orders = await orderController.loadOrders(vendorId: user.id);
+        final orders = await _orderController.loadOrders(vendorId: user.id);
         ref.read(orderProvider.notifier).setOrders(orders);
 
         if (orders.isEmpty) {
@@ -71,8 +72,62 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     }
   }
 
+  // Cập nhật trạng thái đơn hàng và gọi API
+  Future<void> _markOrderAsDelivered(Order order) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Gọi API để cập nhật trạng thái
+      await _orderController.UpdateDeliveryStatus(
+        id: order.id,
+        context: context,
+      );
+
+      // Cập nhật trạng thái trong provider
+      ref.read(orderProvider.notifier).markOrderAsDelivered(order.id);
+
+      // Hiển thị thông báo thành công
+      showSnackBar(context, 'Order marked as delivered');
+    } catch (e) {
+      print('Error updating order: $e');
+      showSnackBar(context, 'Failed to update order');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Cập nhật trạng thái đơn hàng thành hủy và gọi API
+  Future<void> _cancelOrder(Order order) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Gọi API để cập nhật trạng thái
+      await _orderController.cancelOrder(id: order.id, context: context);
+
+      // Cập nhật trạng thái trong provider
+      ref.read(orderProvider.notifier).cancelOrder(order.id);
+
+      // Hiển thị thông báo thành công
+      showSnackBar(context, 'Order cancelled');
+    } catch (e) {
+      print('Error cancelling order: $e');
+      showSnackBar(context, 'Failed to cancel order');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Sử dụng provider để lắng nghe thay đổi danh sách đơn hàng
     final orders = ref.watch(orderProvider);
 
     return Scaffold(
@@ -202,7 +257,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Text(
-              'You don\'t have any orders yet. Start shopping and your orders will appear here.',
+              'You don\'t have any orders yet. Start selling products to get orders.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
@@ -210,11 +265,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
           const SizedBox(height: 32),
           ElevatedButton.icon(
             onPressed: () {
-              // Navigate to shop/home screen
-              Navigator.of(context).pop();
+              // Navigate to Upload screen
             },
-            icon: const Icon(Icons.shopping_bag_outlined),
-            label: const Text('Start Shopping'),
+            icon: const Icon(Icons.add_business_outlined),
+            label: const Text('Upload Products'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue[700],
               foregroundColor: Colors.white,
@@ -447,8 +501,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                   children: [
                     // View details button
                     TextButton.icon(
-                      onPressed: () {
-                        Navigator.push(
+                      onPressed: () async {
+                        // Chuyển sang OrderDetailScreen
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) {
@@ -456,6 +511,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                             },
                           ),
                         );
+
+                        // Không cần làm gì thêm vì trạng thái sẽ được tự động cập nhật qua provider
                       },
                       icon: Icon(
                         Icons.visibility_outlined,
@@ -483,15 +540,33 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
                     const SizedBox(width: 8),
 
-                    // Delete button (conditional based on order status)
-                    if (!order.delivered)
+                    // Hành động nhanh tùy thuộc vào trạng thái đơn hàng
+                    if (order.processing)
                       IconButton(
                         onPressed: () {
-                          // Show confirmation dialog before deleting
-                          _showDeleteConfirmation(context, order);
+                          _showMarkAsDeliveredDialog(order);
                         },
                         icon: Icon(
-                          Icons.delete_outline,
+                          Icons.check_circle_outline,
+                          color: Colors.green[600],
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.green[50],
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+
+                    if (order.processing) const SizedBox(width: 8),
+
+                    if (order.processing)
+                      IconButton(
+                        onPressed: () {
+                          _showCancelOrderDialog(order);
+                        },
+                        icon: Icon(
+                          Icons.cancel_outlined,
                           color: Colors.red[600],
                         ),
                         style: IconButton.styleFrom(
@@ -511,14 +586,46 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     );
   }
 
-  void _showDeleteConfirmation(BuildContext context, Order order) {
+  // Hiện hộp thoại xác nhận đánh dấu đơn hàng đã giao
+  void _showMarkAsDeliveredDialog(Order order) {
     showDialog(
       context: context,
       builder:
           (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+            title: const Text('Mark as Delivered'),
+            content: const Text(
+              'Are you sure you want to mark this order as delivered?',
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey[700]),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  _markOrderAsDelivered(order);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green[600],
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Yes, Mark as Delivered'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // Hiện hộp thoại xác nhận hủy đơn hàng
+  void _showCancelOrderDialog(Order order) {
+    showDialog(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
             title: const Text('Cancel Order'),
             content: const Text(
               'Are you sure you want to cancel this order? This action cannot be undone.',
@@ -534,13 +641,11 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               ElevatedButton(
                 onPressed: () {
                   Navigator.of(ctx).pop();
+                  _cancelOrder(order);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red[600],
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
                 ),
                 child: const Text('Yes, Cancel Order'),
               ),
