@@ -169,6 +169,13 @@ class VendorAuthController {
         ),
       );
       String image = imageResponse.secureUrl;
+
+      // ===== DEBUG CLOUDINARY =====
+      print("=== CLOUDINARY DEBUG ===");
+      print("Cloudinary URL: $image");
+      print("Image length: ${image.length}");
+      print("=======================");
+
       print("Đang cập nhật data cho ID: $id");
 
       final http.Response response = await http.put(
@@ -182,20 +189,35 @@ class VendorAuthController {
         }),
       );
 
+      // ===== DEBUG RESPONSE =====
+      print("=== BACKEND RESPONSE DEBUG ===");
+      print("Status Code: ${response.statusCode}");
+      print("Response Body: ${response.body}");
+      print("=============================");
+
       manageHttpResponse(
         response: response,
         context: context,
         onSuccess: () async {
           final updatedUser = jsonDecode(response.body);
           final userJson = jsonEncode(updatedUser);
+
+          // CẬP NHẬT PROVIDER
           ref.read(vendorProvider.notifier).setVendor(userJson);
+
+          // ===== QUAN TRỌNG: CẬP NHẬT SHARED PREFERENCES =====
+          SharedPreferences preferences = await SharedPreferences.getInstance();
+          await preferences.setString('vendor', userJson);
+          print("=== UPDATED SHARED PREFERENCES ===");
+          print("Saved to SharedPreferences: $userJson");
+          print("=================================");
 
           showSnackBar(context, 'Data updated');
         },
       );
     } catch (e) {
       print("Lỗi cập nhật địa chỉ: $e");
-      showSnackBar(context, 'Failed updarting data');
+      showSnackBar(context, 'Failed updating data');
     }
   }
 

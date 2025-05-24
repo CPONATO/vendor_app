@@ -4,8 +4,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vendor_store_ap/provider/vendor_provider.dart';
 import 'package:vendor_store_ap/views/screens/auth/login_screen.dart';
 import 'package:vendor_store_ap/views/screens/main_vendor_screen.dart';
+import 'dart:io';
 
+class MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback =
+          (X509Certificate cert, String host, int port) => true;
+  }
+}
+
+// Trong main() function:
 void main() {
+  HttpOverrides.global = MyHttpOverrides();
   runApp(ProviderScope(child: const MyApp()));
 }
 
@@ -30,6 +42,8 @@ class MyApp extends ConsumerWidget {
     }
 
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
+
       title: 'Flutter Demo',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),

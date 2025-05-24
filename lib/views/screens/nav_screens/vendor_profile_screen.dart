@@ -36,8 +36,11 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
   bool _hasInitialized = false;
 
   void showEditProfileDialong(BuildContext context) {
-    final TextEditingController _storeDescriptionController =
+    final user = ref.read(vendorProvider);
+    final TextEditingController storeDescriptionController =
         TextEditingController();
+
+    storeDescriptionController.text = user?.storeDescription ?? "";
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -78,7 +81,7 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
               ),
               SizedBox(height: 10),
               TextFormField(
-                controller: _storeDescriptionController,
+                controller: storeDescriptionController,
                 maxLines: 3,
                 decoration: InputDecoration(
                   labelText: "Store Description",
@@ -102,9 +105,10 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
                   context: context,
                   id: ref.read(vendorProvider)!.id,
                   storeImage: imageNotifier.value,
-                  storeDescription: _storeDescriptionController.text,
+                  storeDescription: storeDescriptionController.text,
                   ref: ref,
                 );
+                Navigator.of(context).pop;
               },
               child: Text(
                 'Save',
@@ -142,10 +146,6 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final vendor = ref.watch(vendorProvider);
-    // TODO: Watch các provider khác
-    // final products = ref.watch(vendorProductsProvider);
-    // final orders = ref.watch(vendorOrdersProvider);
-    // final completedOrderCount = ref.watch(vendorCompletedOrderCountProvider);
 
     if (vendor == null) {
       return const Center(child: CircularProgressIndicator());
@@ -228,6 +228,13 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
   }
 
   Widget _buildProfileHeader(BuildContext context, Vendor vendor) {
+    final user = ref.read(vendorProvider);
+
+    // ===== DEBUG UI =====
+    print("=== UI DEBUG ===");
+    print("Vendor storeImage: '${user?.storeImage}'");
+    print("Is empty: ${user?.storeImage?.isEmpty ?? true}");
+    print("===============");
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -245,15 +252,17 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
         children: [
           Stack(
             children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.green[700]!, width: 2),
+              Align(
+                alignment: Alignment(0, -0.53),
+                child: CircleAvatar(
+                  radius: 65,
+                  backgroundImage:
+                      user!.storeImage != ""
+                          ? NetworkImage(user.storeImage!)
+                          : NetworkImage('https://picsum.photos/200'),
                 ),
-                child: ClipOval(child: _buildProfileImage(vendor)),
               ),
+
               // Camera icon for editing
               Positioned(
                 bottom: 0,
@@ -321,15 +330,6 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildProfileImage(Vendor vendor) {
-    return Image.network(
-      vendor.storeImage!,
-      width: 80,
-      height: 80,
-      fit: BoxFit.cover,
     );
   }
 

@@ -19,7 +19,18 @@ class VendorProvider extends StateNotifier<Vendor?> {
       );
 
   void setVendor(String vendorJson) {
+    print("=== PROVIDER SET VENDOR ===");
+    print("Input JSON: $vendorJson");
+
     state = Vendor.fromJson(vendorJson);
+
+    print("=== STATE AFTER SET ===");
+    print("ID: ${state?.id}");
+    print("FullName: ${state?.fullName}");
+    print("StoreImage: '${state?.storeImage}'");
+    print("StoreImage length: ${state?.storeImage?.length ?? 0}");
+    print("StoreDescription: '${state?.storeDescription}'");
+    print("=====================");
   }
 
   void signOut() {

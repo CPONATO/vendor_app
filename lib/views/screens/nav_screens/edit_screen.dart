@@ -34,10 +34,42 @@ class _EditScreenState extends ConsumerState<EditScreen> {
   @override
   Widget build(BuildContext context) {
     final products = ref.watch(vendorProductProvider);
-    return SizedBox(
-      height: 290,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
+    return Scaffold(
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.blue[800],
+        title: const Text(
+          'Edit Product',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: () {},
+          ),
+          const SizedBox(width: 8),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(4.0),
+          child: Container(
+            height: 4.0,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue[300]!, Colors.blue[500]!],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+            ),
+          ),
+        ),
+      ),
+      body: ListView.builder(
+        shrinkWrap: true,
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: products.length,
         itemBuilder: (context, index) {
@@ -53,7 +85,22 @@ class _EditScreenState extends ConsumerState<EditScreen> {
                 ),
               );
             },
-            child: Center(child: Text(product.productName)),
+            child: ListTile(
+              leading: Image.network(product.images[0], width: 50, height: 50),
+              title: Text(
+                product.productName,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+              ),
+              subtitle: Text(product.category),
+              trailing: Text(
+                '\$${product.productPrice.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red,
+                ),
+              ),
+            ),
           );
         },
       ),
