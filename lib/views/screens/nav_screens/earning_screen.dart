@@ -7,6 +7,7 @@ import 'package:vendor_store_ap/provider/total_earning_provider.dart';
 import 'package:vendor_store_ap/provider/vendor_provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:vendor_store_ap/views/screens/nav_screens/upload_screen.dart';
 
 class EarningScreen extends ConsumerStatefulWidget {
   const EarningScreen({super.key});
@@ -17,12 +18,27 @@ class EarningScreen extends ConsumerStatefulWidget {
 
 class _EarningScreenState extends ConsumerState<EarningScreen> {
   bool _isLoading = true;
-  int _selectedPeriod = 30; // Mặc định hiển thị dữ liệu 30 ngày
+  int _selectedPeriod = 30;
 
   @override
   void initState() {
     super.initState();
-    _fetchOrders();
+    // Clear old data trước khi fetch mới
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _clearOldDataAndFetch();
+    });
+  }
+
+  // Method mới để clear data cũ và fetch data mới
+  void _clearOldDataAndFetch() {
+    if (mounted) {
+      // Clear tất cả providers trước
+      ref.read(orderProvider.notifier).setOrders([]);
+      ref.read(totalEarningProvider.notifier).calculateEarning([]);
+
+      // Sau đó fetch data mới
+      _fetchOrders();
+    }
   }
 
   // Helper method để safely call setState
@@ -33,35 +49,85 @@ class _EarningScreenState extends ConsumerState<EarningScreen> {
   }
 
   Future<void> _fetchOrders() async {
+    if (!mounted) return; // Early return nếu widget đã unmounted
+
     _safeSetState(() {
       _isLoading = true;
     });
 
     final user = ref.read(vendorProvider);
-    if (user != null) {
-      final OrderController orderController = OrderController();
-      try {
-        final orders = await orderController.loadOrders(vendorId: user.id);
 
-        // Check if widget is still mounted before updating providers
-        if (mounted) {
-          ref.read(orderProvider.notifier).setOrders(orders);
-          ref.read(totalEarningProvider.notifier).calculateEarning(orders);
+    // ===== THÊM CHECK USER VALIDITY =====
+    if (user == null || user.id.isEmpty) {
+      print('No valid user found, skipping fetch');
+      _safeSetState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+
+    print('=== FETCH ORDERS DEBUG ===');
+    print('Current user: ${user.fullName}');
+    print('Current user ID: ${user.id}');
+    print('========================');
+
+    final OrderController orderController = OrderController();
+    try {
+      final orders = await orderController.loadOrders(vendorId: user.id);
+
+      // Check if widget is still mounted before updating providers
+      if (mounted) {
+        if (orders.isEmpty) {
+          print('=== NO ORDERS RESULT ===');
+          print('User ${user.fullName} has no orders');
+          print('=======================');
+        } else {
+          print('=== SETTING NEW ORDERS ===');
+          print('Orders count: ${orders.length}');
+          print('=========================');
         }
-      } catch (e) {
-        print('Error fetching order: $e');
-        // Có thể show snackbar nếu cần
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error fetching orders: $e')));
-        }
-      } finally {
-        _safeSetState(() {
-          _isLoading = false;
-        });
+
+        ref.read(orderProvider.notifier).setOrders(orders);
+        ref.read(totalEarningProvider.notifier).calculateEarning(orders);
       }
-    } else {
+    } catch (e) {
+      print('=== ERROR FETCHING ORDERS ===');
+      print('Error type: ${e.runtimeType}');
+      print('Error message: $e');
+      print('============================');
+
+      // Kiểm tra loại lỗi và xử lý phù hợp
+      if (mounted) {
+        String errorMessage;
+
+        if (e.toString().contains('Network Error')) {
+          errorMessage = 'Network error. Please check your connection.';
+        } else if (e.toString().contains('Data Format Error')) {
+          errorMessage = 'Data error. Please try again.';
+        } else if (e.toString().contains('No orders') ||
+            e.toString().contains('404')) {
+          // Trường hợp này nên set empty orders thay vì show error
+          print('=== TREATING ERROR AS NO ORDERS ===');
+          ref.read(orderProvider.notifier).setOrders([]);
+          ref.read(totalEarningProvider.notifier).calculateEarning([]);
+          _safeSetState(() {
+            _isLoading = false;
+          });
+          return; // Early return, không show error message
+        } else {
+          errorMessage = 'Failed to load orders. Please try again.';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red[600],
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.all(16),
+          ),
+        );
+      }
+    } finally {
       _safeSetState(() {
         _isLoading = false;
       });
@@ -71,8 +137,31 @@ class _EarningScreenState extends ConsumerState<EarningScreen> {
   @override
   Widget build(BuildContext context) {
     final vendor = ref.watch(vendorProvider);
+
+    // ===== THÊM VALIDATION CHO VENDOR =====
+    if (vendor == null || vendor.id.isEmpty) {
+      return Scaffold(
+        backgroundColor: Colors.grey[100],
+        appBar: AppBar(
+          backgroundColor: Colors.blue[800],
+          title: Text('Loading...', style: TextStyle(color: Colors.white)),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading user data...'),
+            ],
+          ),
+        ),
+      );
+    }
+
     final totalEarnings = ref.watch(totalEarningProvider);
     final orders = ref.watch(orderProvider);
+
     final currencyFormat = NumberFormat.currency(
       symbol: '\$',
       decimalDigits: 2,
@@ -107,18 +196,15 @@ class _EarningScreenState extends ConsumerState<EarningScreen> {
           children: [
             CircleAvatar(
               backgroundColor: Colors.white,
-              child: Text(
-                vendor?.fullName[0].toUpperCase() ?? 'V',
-                style: TextStyle(
-                  color: Colors.blue[800],
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              backgroundImage:
+                  vendor.storeImage != ""
+                      ? NetworkImage(vendor.storeImage!)
+                      : NetworkImage('https://picsum.photos/200'),
             ),
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                "Welcome, ${vendor?.fullName ?? 'Vendor'}!",
+                "Welcome, ${vendor.fullName}!",
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -218,23 +304,6 @@ class _EarningScreenState extends ConsumerState<EarningScreen> {
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.9),
                   fontSize: 16,
-                ),
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.calendar_today, color: Colors.white, size: 16),
-                    SizedBox(width: 4),
-                    Text(
-                      'All Time',
-                      style: TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                  ],
                 ),
               ),
             ],
@@ -382,35 +451,6 @@ class _EarningScreenState extends ConsumerState<EarningScreen> {
     );
   }
 
-  Widget _buildPeriodButton(int days, String label) {
-    final isSelected = _selectedPeriod == days;
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          _safeSetState(() {
-            _selectedPeriod = days;
-          });
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.blue[700] : Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? Colors.white : Colors.grey[700],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildRecentOrdersList(List<dynamic> orders) {
     // Lọc 5 đơn hàng gần đây nhất
     final recentOrders = orders.take(5).toList();
@@ -443,61 +483,91 @@ class _EarningScreenState extends ConsumerState<EarningScreen> {
                   color: Colors.grey[800],
                 ),
               ),
-              TextButton(
-                onPressed: () {
-                  // Safe navigation - check mounted before navigation
-                  if (!mounted) return;
+              if (recentOrders.isNotEmpty)
+                TextButton(
+                  onPressed: () {
+                    // Safe navigation - check mounted before navigation
+                    if (!mounted) return;
 
-                  // Chuyển đến trang Orders - có thể cần điều chỉnh logic này
-                  final int orderTabIndex =
-                      3; // Index của tab Orders trong bottom navigation
-
-                  // Safer way to handle tab switching
-                  try {
-                    final parent =
-                        context
-                            .findAncestorStateOfType<State<StatefulWidget>>();
-                    if (parent != null && mounted) {
-                      // Nếu sử dụng navigation bar với index
-                      final parentState =
-                          parent as dynamic; // Danger: dynamic cast
-                      if (parentState.mounted) {
-                        parentState.setState(() {
-                          parentState._pageIndex = orderTabIndex;
-                        });
+                    // Chuyển đến trang Orders
+                    try {
+                      final parent =
+                          context
+                              .findAncestorStateOfType<State<StatefulWidget>>();
+                      if (parent != null && mounted) {
+                        final parentState = parent as dynamic;
+                        if (parentState.mounted) {
+                          parentState.setState(() {
+                            parentState._pageIndex = 3; // Orders tab
+                          });
+                        }
                       }
+                    } catch (e) {
+                      print('Cannot switch tab: $e');
                     }
-                  } catch (e) {
-                    print('Cannot switch tab: $e');
-                  }
-                },
-                child: Text('View All'),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.blue[700],
-                  padding: EdgeInsets.zero,
-                  minimumSize: Size(50, 30),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  },
+                  child: Text('View All'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.blue[700],
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size(50, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
-              ),
             ],
           ),
           SizedBox(height: 16),
           recentOrders.isEmpty
-              ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'No recent orders',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                ),
-              )
+              ? _buildNoOrdersMessage()
               : Column(
                 children:
                     recentOrders
                         .map((order) => _buildOrderItem(order))
                         .toList(),
               ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoOrdersMessage() {
+    final vendor = ref.watch(vendorProvider);
+
+    return Container(
+      padding: EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.shopping_bag_outlined,
+              size: 40,
+              color: Colors.blue[300],
+            ),
+          ),
+          SizedBox(height: 16),
+          Text(
+            'No Orders Yet',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            vendor?.fullName != null
+                ? 'Hello ${vendor!.fullName}! You haven\'t received any orders yet.'
+                : 'You haven\'t received any orders yet.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+          ),
+          SizedBox(height: 16),
         ],
       ),
     );
@@ -565,7 +635,7 @@ class _EarningScreenState extends ConsumerState<EarningScreen> {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  'Qty: ${order.quantity} • \$${order.productPrice.toStringAsFixed(2)}',
+                  'Qty: ${order.quantity} • ${order.productPrice.toStringAsFixed(0)} VND',
                   style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
@@ -576,7 +646,7 @@ class _EarningScreenState extends ConsumerState<EarningScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '\$${(order.productPrice * order.quantity).toStringAsFixed(2)}',
+                '${(order.productPrice * order.quantity).toStringAsFixed(0)} VND',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               SizedBox(height: 4),

@@ -41,19 +41,40 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         ref.read(orderProvider.notifier).setOrders(orders);
 
         if (orders.isEmpty) {
-          print("No orders found for this user");
+          print("=== NO ORDERS FOR USER ===");
+          print("User ${user.fullName} has no orders");
+          print("=========================");
+        } else {
+          print("=== ORDERS LOADED ===");
+          print("User ${user.fullName} has ${orders.length} orders");
+          print("====================");
         }
       } catch (e) {
-        print('Error fetching orders: $e');
+        print('=== ORDER SCREEN ERROR ===');
+        print('Error: $e');
+        print('=========================');
 
-        // Important: Interpret the error as "no orders" rather than a critical error
-        if (e.toString().contains("No orders") ||
-            e.toString().contains("404") ||
-            e.toString().contains("empty")) {
-          // This is likely just "no orders available" - set empty list
+        // Phân loại error để xử lý phù hợp
+        if (e.toString().contains('Network Error')) {
+          setState(() {
+            _isCriticalError = true;
+            _errorMessage =
+                'Network error. Please check your connection and try again.';
+          });
+        } else if (e.toString().contains('Data Format Error')) {
+          setState(() {
+            _isCriticalError = true;
+            _errorMessage = 'Data error. Please try again later.';
+          });
+        } else if (e.toString().contains('No orders') ||
+            e.toString().contains('404') ||
+            e.toString().contains('Failed to load Orders - Status: 404')) {
+          // Trường hợp không có orders - không phải critical error
+          print('=== TREATING AS NO ORDERS ===');
           ref.read(orderProvider.notifier).setOrders([]);
+          // Không set _isCriticalError = true
         } else {
-          // This is a real error (like network failure, server error)
+          // Các lỗi thực sự khác
           setState(() {
             _isCriticalError = true;
             _errorMessage = 'Could not load orders. Please try again.';
@@ -263,21 +284,6 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
             ),
           ),
           const SizedBox(height: 32),
-          ElevatedButton.icon(
-            onPressed: () {
-              // Navigate to Upload screen
-            },
-            icon: const Icon(Icons.add_business_outlined),
-            label: const Text('Upload Products'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue[700],
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -445,7 +451,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '\$${order.productPrice.toStringAsFixed(2)}',
+                        '${order.productPrice.toStringAsFixed(0)} VND',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 18,
@@ -486,7 +492,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                       style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                     Text(
-                      '\$${(order.productPrice * order.quantity).toStringAsFixed(2)}',
+                      '${(order.productPrice * order.quantity).toStringAsFixed(0)} VND',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,

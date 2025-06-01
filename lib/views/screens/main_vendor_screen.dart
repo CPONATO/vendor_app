@@ -15,13 +15,30 @@ class MainVendorScreen extends StatefulWidget {
 
 class _MainVendorScreenState extends State<MainVendorScreen> {
   int _pageIndex = 0;
-  List<Widget> _pages = [
-    EarningScreen(),
-    UploadScreen(),
-    EditScreen(),
-    OrderScreen(),
-    VendorProfileScreen(),
-  ];
+
+  // ===== THÊM KEY ĐỂ FORCE REBUILD =====
+  late List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _buildPages();
+  }
+
+  void _buildPages() {
+    _pages = [
+      EarningScreen(
+        key: ValueKey('earning_${DateTime.now().millisecondsSinceEpoch}'),
+      ),
+      UploadScreen(),
+      EditScreen(),
+      OrderScreen(
+        key: ValueKey('order_${DateTime.now().millisecondsSinceEpoch}'),
+      ),
+      VendorProfileScreen(),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -31,6 +48,12 @@ class _MainVendorScreenState extends State<MainVendorScreen> {
           setState(() {
             _pageIndex = value;
           });
+
+          // ===== REBUILD PAGES KHI CHUYỂN TAB =====
+          if (value == 0 || value == 3) {
+            // EarningScreen or OrderScreen
+            _buildPages();
+          }
         },
         unselectedItemColor: Colors.grey,
         selectedItemColor: Colors.blue,
@@ -38,7 +61,7 @@ class _MainVendorScreenState extends State<MainVendorScreen> {
         items: [
           BottomNavigationBarItem(
             icon: Icon(CupertinoIcons.money_dollar),
-            label: "Ernings",
+            label: "Earnings",
           ),
           BottomNavigationBarItem(
             icon: Icon(CupertinoIcons.upload_circle),

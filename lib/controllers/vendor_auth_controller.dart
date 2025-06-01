@@ -8,6 +8,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vendor_store_ap/global_variables.dart';
 import 'package:vendor_store_ap/models/vendor.dart';
 import 'package:http/http.dart' as http;
+import 'package:vendor_store_ap/provider/order_provider.dart';
+import 'package:vendor_store_ap/provider/total_earning_provider.dart';
+import 'package:vendor_store_ap/provider/vendor_product_provider.dart';
 import 'package:vendor_store_ap/provider/vendor_provider.dart';
 import 'package:vendor_store_ap/services/manage_http_response.dart';
 import 'package:vendor_store_ap/views/screens/auth/login_screen.dart';
@@ -133,7 +136,19 @@ class VendorAuthController {
 
       // Clear the user state using the container from the widget tree
       final container = ProviderScope.containerOf(context);
+
+      // ===== THÊM CLEAR ALL PROVIDERS =====
+      // Clear vendor provider
       container.read(vendorProvider.notifier).signOut();
+
+      // Clear order provider
+      container.read(orderProvider.notifier).setOrders([]);
+
+      // Clear total earning provider
+      container.read(totalEarningProvider.notifier).calculateEarning([]);
+
+      // Clear vendor product provider
+      container.read(vendorProductProvider.notifier).setProduct([]);
 
       // Navigate the user back to the login screen
       Navigator.pushAndRemoveUntil(

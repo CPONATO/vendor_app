@@ -101,14 +101,15 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
               onPressed: () async {
-                await _authController.updateVendorData(
-                  context: context,
-                  id: ref.read(vendorProvider)!.id,
-                  storeImage: imageNotifier.value,
-                  storeDescription: storeDescriptionController.text,
-                  ref: ref,
-                );
-                Navigator.of(context).pop;
+                await _authController
+                    .updateVendorData(
+                      context: context,
+                      id: ref.read(vendorProvider)!.id,
+                      storeImage: imageNotifier.value,
+                      storeDescription: storeDescriptionController.text,
+                      ref: ref,
+                    )
+                    .whenComplete(Navigator.of(context).pop);
               },
               child: Text(
                 'Save',
@@ -205,14 +206,9 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
             _buildStoreInfoCard(context, vendor),
             const SizedBox(height: 16),
 
-            _buildSectionTitle('Business Address'),
-            _buildAddressCard(context, vendor, ref),
-            const SizedBox(height: 16),
-
-            _buildSectionTitle('Security'),
-            _buildSecurityCard(context),
-            const SizedBox(height: 16),
-
+            // _buildSectionTitle('Security'),
+            // _buildSecurityCard(context),
+            // const SizedBox(height: 16),
             _buildSectionTitle('Support'),
             _buildVendorSupportCard(context),
             const SizedBox(height: 24),
@@ -256,6 +252,7 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
                 alignment: Alignment(0, -0.53),
                 child: CircleAvatar(
                   radius: 65,
+                  backgroundColor: Colors.white,
                   backgroundImage:
                       user!.storeImage != ""
                           ? NetworkImage(user.storeImage!)
@@ -277,7 +274,7 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
                       border: Border.all(color: Colors.white, width: 2),
                     ),
                     child: const Icon(
-                      CupertinoIcons.camera_fill,
+                      CupertinoIcons.pencil,
                       color: Colors.white,
                       size: 14,
                     ),
@@ -394,138 +391,36 @@ class _VendorProfileScreenState extends ConsumerState<VendorProfileScreen> {
     );
   }
 
-  Widget _buildAddressCard(
-    BuildContext context,
-    dynamic vendor,
-    WidgetRef ref,
-  ) {
-    final hasAddress =
-        vendor.state.isNotEmpty ||
-        vendor.city.isNotEmpty ||
-        vendor.locality.isNotEmpty;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 5,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () {
-            // Navigate to vendor address screen
-            // Navigator.push(
-            //   context,
-            //   MaterialPageRoute(
-            //     builder: (context) => const VendorAddressScreen(),
-            //   ),
-            // );
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    CupertinoIcons.location_solid,
-                    color: Colors.green[700],
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        hasAddress
-                            ? 'Business Address'
-                            : 'Add Business Address',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: hasAddress ? Colors.black : Colors.green[700],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      if (hasAddress)
-                        Text(
-                          '${vendor.locality}, ${vendor.city}, ${vendor.state}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                        )
-                      else
-                        Text(
-                          'Tap to add your business address',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: Colors.grey[600],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSecurityCard(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 5,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          _buildListTile(
-            title: 'Change Password',
-            subtitle: 'Update your account password',
-            icon: CupertinoIcons.lock_fill,
-            iconColor: Colors.red[700]!,
-            onTap: () {
-              // Navigate to change password screen
-            },
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildSecurityCard(BuildContext context) {
+  //   return Container(
+  //     margin: const EdgeInsets.symmetric(horizontal: 16),
+  //     decoration: BoxDecoration(
+  //       color: Colors.white,
+  //       borderRadius: BorderRadius.circular(12),
+  //       boxShadow: [
+  //         BoxShadow(
+  //           color: Colors.grey.withOpacity(0.1),
+  //           spreadRadius: 1,
+  //           blurRadius: 5,
+  //           offset: const Offset(0, 2),
+  //         ),
+  //       ],
+  //     ),
+  //     child: Column(
+  //       children: [
+  //         _buildListTile(
+  //           title: 'Change Password',
+  //           subtitle: 'Update your account password',
+  //           icon: CupertinoIcons.lock_fill,
+  //           iconColor: Colors.red[700]!,
+  //           onTap: () {
+  //             // Navigate to change password screen
+  //           },
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildVendorSupportCard(BuildContext context) {
     return Container(

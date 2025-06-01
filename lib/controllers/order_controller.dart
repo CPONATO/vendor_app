@@ -11,6 +11,12 @@ class OrderController {
     try {
       SharedPreferences preferences = await SharedPreferences.getInstance();
       String? token = preferences.getString('auth_token');
+
+      print('=== ORDER CONTROLLER DEBUG ===');
+      print('Vendor ID: $vendorId');
+      print('Token exists: ${token != null}');
+      print('=============================');
+
       http.Response response = await http.get(
         Uri.parse('$uri/api/orders/vendors/$vendorId'),
         headers: <String, String>{
@@ -19,16 +25,72 @@ class OrderController {
         },
       );
 
+      print('=== API RESPONSE DEBUG ===');
+      print('Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+      print('=========================');
+
       if (response.statusCode == 200) {
         List<dynamic> data = jsonDecode(response.body);
+
+        if (data.isEmpty) {
+          print('=== NO ORDERS FOUND ===');
+          print('API returned empty array');
+          print('======================');
+          return []; // Return empty list thay vì throw exception
+        }
+
         List<Order> orders =
             data.map((order) => Order.fromJson(order)).toList();
+        print('=== ORDERS LOADED SUCCESSFULLY ===');
+        print('Orders count: ${orders.length}');
+        print('================================');
         return orders;
+      } else if (response.statusCode == 404) {
+        // 404 thường có nghĩa là không tìm thấy orders cho vendor này
+        print('=== NO ORDERS FOR VENDOR ===');
+        print('404 - No orders found for this vendor');
+        print('==============================');
+        return []; // Return empty list thay vì throw exception
       } else {
-        throw Exception('Failed to load Orders');
+        // Chỉ throw exception cho các lỗi thực sự (500, 401, etc.)
+        print('=== REAL API ERROR ===');
+        print('Status: ${response.statusCode}');
+        print('Response: ${response.body}');
+        print('====================');
+        throw Exception(
+          'Failed to load Orders - Status: ${response.statusCode}',
+        );
       }
     } catch (e) {
-      throw Exception('Error Loading Orders');
+      print('=== CATCH BLOCK DEBUG ===');
+      print('Error type: ${e.runtimeType}');
+      print('Error message: $e');
+      print('=======================');
+
+      // Kiểm tra xem có phải lỗi network không
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Connection') ||
+          e.toString().contains('Network')) {
+        throw Exception('Network Error: Please check your connection');
+      }
+
+      // Kiểm tra xem có phải lỗi parsing không
+      if (e.toString().contains('FormatException') ||
+          e.toString().contains('JSON')) {
+        throw Exception('Data Format Error: Please try again');
+      }
+
+      // Với các lỗi khác, có thể là không có orders
+      if (e.toString().contains('404') ||
+          e.toString().contains('Not Found') ||
+          e.toString().contains('No orders')) {
+        print('=== TREATING AS NO ORDERS ===');
+        return []; // Return empty list cho trường hợp này
+      }
+
+      // Các lỗi thực sự khác
+      throw Exception('Error Loading Orders: ${e.toString()}');
     }
   }
 

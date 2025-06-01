@@ -421,7 +421,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                           ),
                         ),
                         Text(
-                          '\$${_order.productPrice.toStringAsFixed(2)} / item',
+                          '${_order.productPrice.toStringAsFixed(0)} VND / item',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
@@ -444,7 +444,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
             children: [
               const Text('Customer Paid', style: TextStyle(fontSize: 14)),
               Text(
-                '\$${subtotal.toStringAsFixed(2)}',
+                '${subtotal.toStringAsFixed(0)} VND',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -461,7 +461,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 style: TextStyle(fontSize: 14, color: Colors.red),
               ),
               Text(
-                '-\$${platformFee.toStringAsFixed(2)}',
+                '-${platformFee.toStringAsFixed(0)} VND',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -481,7 +481,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               Text(
-                '\$${vendorEarnings.toStringAsFixed(2)}',
+                '${vendorEarnings.toStringAsFixed(0)} VND',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,

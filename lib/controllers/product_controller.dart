@@ -64,13 +64,6 @@ class ProductController {
             showSnackBar(context, 'Product uploaded');
           },
         );
-        manageHttpResponse(
-          response: response,
-          context: context,
-          onSuccess: () {
-            showSnackBar(context, 'Product uploaded');
-          },
-        );
       } else {
         showSnackBar(context, 'Select Category');
       }
