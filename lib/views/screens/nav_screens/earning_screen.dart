@@ -162,10 +162,7 @@ class _EarningScreenState extends ConsumerState<EarningScreen> {
     final totalEarnings = ref.watch(totalEarningProvider);
     final orders = ref.watch(orderProvider);
 
-    final currencyFormat = NumberFormat.currency(
-      symbol: '\$',
-      decimalDigits: 2,
-    );
+    final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 0);
 
     // Tính toán số liệu bổ sung
     final deliveredOrders = orders.where((order) => order.delivered).length;
